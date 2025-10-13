@@ -14,7 +14,7 @@ on:
         description: 'Versão do Java para o build'
         required: false
         type: string
-        default: '17'
+        default: '21'
     secrets:
       KUBE_CONFIG_DATA:
         description: 'O kubeconfig (em base64) para autenticar no cluster Kubernetes'
@@ -37,11 +37,13 @@ jobs:
         with:
           java-version: ${{ inputs.java-version }}
           distribution: 'temurin'
-          cache: 'maven' # ou 'gradle'
+          cache: 'gradle'
 
-      - name: Build com Maven
-        # Adapte para './gradlew build' se usar Gradle
-        run: mvn -B package --file pom.xml
+      - name: Dar permissão de execução para o gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build com Gradle
+        run: ./gradlew build
 
       - name: Login no GitHub Container Registry
         uses: docker/login-action@v3
