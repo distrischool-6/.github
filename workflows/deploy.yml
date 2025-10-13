@@ -1,0 +1,34 @@
+# .github/workflows/deploy.yml
+
+name: Deploy to K3s on VPS
+
+# Gatilho: Executa este workflow sempre que houver um push na branch 'main'
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # O workflow roda em uma máquina virtual do GitHub
+
+    steps:
+      # 1. Baixa o código do seu repositório para a máquina do GitHub Actions
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Instala e configura o kubectl usando o secret KUBE_CONFIG_DATA
+      - name: Set up Kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_DATA }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+        
+      # 3. Aplica as configurações do Kubernetes no seu cluster
+      - name: Deploy to K3s
+        run: |
+          # Este comando assume que seus arquivos de deploy estão na pasta 'k8s/'
+          kubectl apply -f k8s/
+          
+          echo "Verificando o status dos pods..."
+          kubectl get pods
