@@ -1,0 +1,95 @@
+# Workflow Reutilizável para serviços Java com deploy em Kubernetes
+# Salve este arquivo em: .github/workflows/reusable-java-k8s-pipeline.yml
+
+name: 'Reusable CI/CD Java para Kubernetes'
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        description: 'O nome do serviço (ex: ds6-user-service)'
+        required: true
+        type: string
+      java-version:
+        description: 'Versão do Java para o build'
+        required: false
+        type: string
+        default: '17'
+    secrets:
+      KUBE_CONFIG_DATA:
+        description: 'O kubeconfig (em base64) para autenticar no cluster Kubernetes'
+        required: true
+
+jobs:
+  build-and-publish:
+    name: Build e Publica Imagem Docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Necessário para publicar no GitHub Container Registry
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK ${{ inputs.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: 'temurin'
+          cache: 'maven' # ou 'gradle'
+
+      - name: Build com Maven
+        # Adapte para './gradlew build' se usar Gradle
+        run: mvn -B package --file pom.xml
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e Push da Imagem Docker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ inputs.service-name }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  deploy:
+    name: Deploy no Kubernetes
+    runs-on: ubuntu-latest
+    needs: build-and-publish # Garante que o deploy só roda se o build for sucesso
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar context do Kubernetes
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_DATA }}
+
+      - name: Deploy com kubectl
+        run: |
+          # Assumindo que seus arquivos de manifesto estão em uma pasta 'k8s'
+          # e que você usa 'kustomize' para atualizar a tag da imagem.
+          # Se não usar kustomize, você pode usar 'sed' para substituir a tag da imagem no seu deployment.yaml
+          
+          echo "Fazendo deploy da imagem: ghcr.io/${{ github.repository_owner }}/${{ inputs.service-name }}:${{ github.sha }}"
+          
+          # Exemplo usando kustomize (recomendado)
+          # 1. Certifique-se que seu kustomization.yaml está configurado
+          # 2. Use o comando abaixo para setar a nova imagem
+          # kubectl kustomize k8s/ | kubectl apply -f -
+          
+          # Exemplo simples com 'sed' (se você não usa kustomize)
+          sed -i "s|image:.*|image: ghcr.io/${{ github.repository_owner }}/${{ inputs.service-name }}:${{ github.sha }}|g" k8s/deployment.yaml
+          
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
