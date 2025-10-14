@@ -1,0 +1,6 @@
+# Documentação e arquivos temporários
+doc/
+*.DS_Store
+DS6_Roadmap.md
+AGENTS.md
+GEMINI.MD
