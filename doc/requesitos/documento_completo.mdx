@@ -1,0 +1,114 @@
+import { Callout, VersionHistory } from './components';
+
+# **Software Requirements Specification (SRS): DS6 - DistriSchool**
+
+<Callout type="info" title="Controle do Documento">
+  **Versão:** 1.0 (Rascunho)  
+  **Data:** 14 de Outubro de 2025  
+  **Status:** `Rascunho para Revisão`  
+  **Autores:** Gabriel Aderaldo (PM), Parceiro PM (Arquiteto)
+</Callout>
+
+---
+
+## **Resumo Executivo**
+
+Este documento é a fonte única da verdade (Single Source of Truth) para a especificação do sistema **DistriSchool (DS6)**. Ele detalha de forma exaustiva os **Requisitos Funcionais (RFs)**, os **Requisitos Não-Funcionais (RNFs)**, as **Decisões de Arquitetura (ADRs)**, os contratos de integração, os modelos de dados e os procedimentos operacionais. O objetivo é servir como um guia inequívoco para as equipes de desenvolvimento, qualidade, produto e operações durante todo o ciclo de vida do projeto, desde a concepção até a implantação e manutenção.
+
+---
+
+## **Aprovações**
+
+A assinatura abaixo indica o acordo e a aprovação dos requisitos e decisões contidos neste documento.
+
+| Nome | Papel | Assinatura | Data |
+| :--- | :--- | :--- | :--- |
+| Gabriel Aderaldo | Product Manager | _________________________ | ____/____/______ |
+| [PENDÊNCIA] | Tech Lead | _________________________ | ____/____/______ |
+| [PENDÊNCIA] | Head of Engineering | _________________________ | ____/____/______ |
+| [PENDÊNCIA] | Cliente / Sponsor | _________________________ | ____/____/______ |
+
+---
+
+<VersionHistory
+  data={[
+    { version: '0.1.0', date: '14/10/2025', author: 'Parceiro PM', changes: 'Criação da estrutura do documento e capa', approver: 'N/A' }
+  ]}
+/>
+
+---
+
+## **Índice de Seções**
+
+1.  **[Introdução](#1-introdução)**
+    - 1.1. Finalidade e Público-Alvo
+    - 1.2. Escopo do Produto (MVP e Pós-MVP)
+    - 1.3. Objetivos de Negócio
+    - 1.4. Definições e Acrônimos
+    - 1.5. Referências
+    - 1.6. Suposições e Dependências
+
+2.  **[Descrição Geral](#2-descrição-geral)**
+    - 2.1. Perspectiva do Produto
+    - 2.2. Funções Principais
+    - 2.3. Atores e Personas
+    - 2.4. Ambiente de Operação
+    - 2.5. Restrições e Premissas
+
+3.  **[Requisitos Funcionais (RFs)](#3-requisitos-funcionais)**
+    - 3.1. ÉPICO-01: Gestão de Acessos (Auth & Users)
+    - 3.2. ÉPICO-02: Gestão de Alunos
+    - 3.3. ÉPICO-03: Gestão de Horários
+    - 3.4. ÉPICO-04: Controle de Presença
+    - 3.5. ÉPICO-05: Gestão de Avaliações e Notas
+    - 3.6. ÉPICO-06: Importação e Exportação de Dados
+    - 3.7. ÉPICO-07: Notificações e Relatórios
+
+4.  **[Requisitos Não-Funcionais (RNFs)](#4-requisitos-não-funcionais)**
+    - 4.1. Desempenho
+    - 4.2. Disponibilidade e Confiabilidade
+    - 4.3. Observabilidade
+    - 4.4. Segurança e LGPD
+    - 4.5. Escalabilidade
+    - 4.6. Manutenibilidade
+    - 4.7. Backup e Recuperação de Desastres (DR)
+
+5.  **[Arquitetura de Sistema](#5-arquitetura-de-sistema)**
+    - 5.1. Visão Geral e Estilos Arquiteturais
+    - 5.2. Diagrama de Contexto (C4 Nível 1)
+    - 5.3. Diagrama de Contêineres (C4 Nível 2)
+    - 5.4. Estratégia de Micro-Frontends (MFE)
+    - 5.5. Padrões de Integração (REST, EDD, WS)
+    - 5.6. Modelo de Tenancy
+
+6.  **[Modelo de Dados e Persistência](#6-modelo-de-dados)**
+    - 6.1. Estratégia de Persistência (Dados por Serviço)
+    - 6.2. Diagrama de Entidade-Relacionamento (Lógico)
+    - 6.3. Gerenciamento de Migrações (Flyway)
+    - 6.4. Políticas de Retenção e Anonimização
+
+7.  **[Segurança](#7-segurança)**
+    - 7.1. Autenticação e Autorização
+    - 7.2. Gestão de Segredos
+    - 7.3. Segurança em Trânsito e em Repouso
+    - 7.4. Matriz de Acessos (RBAC)
+
+8.  **[CI/CD e Operações (DevOps)](#8-cicd-e-operações)**
+    - 8.1. Pipeline de Integração e Deploy
+    - 8.2. Estratégia de Ambientes
+    - 8.3. Monitoramento e Alertas
+
+9.  **[Catálogo de Contratos e Eventos](#9-catálogo-de-contratos)**
+    - 9.1. Contratos de API (OpenAPI)
+    - 9.2. Catálogo de Eventos (v1)
+    - 9.3. Contratos de WebSocket
+
+10. **[Matriz de Rastreabilidade](#10-matriz-de-rastreabilidade)**
+
+11. **[Registros de Decisão de Arquitetura (ADRs)](#11-adrs)**
+
+12. **[Anexos](#12-anexos)**
+    - 12.1. Template de Envelope de Evento
+    - 12.2. Template de Erro (RFC 7807)
+    - 12.3. Checklist de DoD (Definition of Done)
+    - 12.4. Runbooks Operacionais

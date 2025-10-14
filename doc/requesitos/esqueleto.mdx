@@ -1,0 +1,429 @@
+import { Callout, Card, Mermaid, Tab, Tabs, VersionHistory } from './components';
+
+# **Software Requirements Specification (SRS): DS6 - DistriSchool**
+
+<VersionHistory
+  data={[
+    { version: '0.1.0', date: '14/10/2025', author: 'Gabriel Aderaldo, Parceiro PM', changes: 'Versão inicial do guia de requisitos', approver: '[PENDÊNCIA]' }
+  ]}
+/>
+
+**Aprovadores:**
+
+| Nome | Papel | Assinatura | Data |
+| :--- | :--- | :--- | :--- |
+| Gabriel Aderaldo | Product Manager | _________________________ | ____/____/______ |
+| [PENDÊNCIA] | Tech Lead | _________________________ | ____/____/______ |
+| [PENDÊNCIA] | Cliente/Sponsor | _________________________ | ____/____/______ |
+
+<Callout type="info">
+  **Resumo Executivo:** Este documento detalha os requisitos funcionais e não-funcionais para o **DistriSchool (DS6)**, um sistema de gestão acadêmica distribuído. O objetivo é fornecer uma base técnica clara para o desenvolvimento, testes e implantação do MVP, focando na criação de uma arquitetura escalável, observável e segura desde o início. A estrutura segue o template padrão, com referências a decisões de arquitetura e boas práticas de engenharia de software. (Referências: Template SRS Cliente; Valente, cap. 2).
+</Callout>
+
+---
+
+## 1. Introdução
+
+### 1.1. Finalidade e Público-Alvo
+Este documento serve como um contrato técnico e a fonte da verdade para a equipe de desenvolvimento, produto e QA do projeto **DS6 - DistriSchool**. Seu objetivo é eliminar ambiguidades, alinhar expectativas e guiar a implementação de forma rastreável e consistente. (Referências: Gerenciamento de Requisitos de Software, Wiegers & Beatty, cap. 1).
+
+### 1.2. Escopo do Produto
+O **DistriSchool** é um sistema de gestão acadêmica distribuído, projetado para ser modular, resiliente e escalável. A arquitetura visa o isolamento de domínios de negócio em microsserviços e micro-frontends, garantindo autonomia das equipes e implantação desacoplada.
+
+<Tabs items={['Dentro do Escopo (MVP)', 'Fora do Escopo (Pós-MVP)']}>
+  <Tab>
+    **Funcionalidades-chave (Fases F0-F1.2):**
+    - [x] **Fundações:** CI/CD, `library` de padrões, templates de deploy.
+    - [x] **Gestão de Acessos:** Autenticação e gerenciamento de papéis (`ds6-auth-service`, `ds6-user-service`).
+    - [x] **Gestão de Alunos:** CRUD de estudantes (`ds6-student-service`).
+    - [x] **Controle de Presença:** Registro de frequência em tempo real e offline-first (`ds6-presence-service`).
+    - [x] **Gestão de Notas:** Lançamento de notas de avaliações (`ds6-grade-exams-service`).
+    - [x] **Infraestrutura:** Provisionamento inicial para 3 escolas (single-tenant por instância).
+  </Tab>
+  <Tab>
+    **O que NÃO faremos agora:**
+    - [ ] **Automação de Infra (Control Plane):** Provisionamento via IaC (Fase F2).
+    - [ ] **Multi-tenancy Lógico:** Suporte a múltiplos tenants no mesmo banco de dados (Fase F3, R&D).
+    - [ ] **Governança MFE Avançada:** Validação de contratos de frontends (Fase F4).
+    - [ ] **Analytics e Notificações Avançadas:** (Fase F4).
+    <Callout type="warning">
+        Decisões sobre o que fica de fora são cruciais para focar no valor do MVP e validar a arquitetura principal. (Referência: Histórias de Usuário, Cohn, 2022).
+    </Callout>
+  </Tab>
+</Tabs>
+
+### 1.3. Objetivos de Negócio (MVP)
+| Objetivo | Métrica | Meta (Até Fim da F1.2) |
+| :--- | :--- | :--- |
+| Validar o núcleo operacional | Uptime dos serviços críticos | ≥ 99% (Auth, Presence, Grades) |
+| Garantir performance na autenticação | Tempo de resposta do login | p95 < 2 segundos |
+| Assegurar feedback em tempo real | Latência do push de presença (WS) | p95 < 5 segundos |
+| Controlar o custo de entrada | Custo por tenant/escola | [PENDÊNCIA: Definir baseline] |
+| Atingir satisfação inicial | Net Promoter Score (NPS) | > 7 com as 3 primeiras escolas |
+
+### 1.4. Definições e Acrônimos
+- **ADR:** Architecture Decision Record
+- **BDD:** Behavior-Driven Development
+- **BFF:** Backend for Frontend
+- **EDD:** Event-Driven Design
+- **JWT:** JSON Web Token
+- **MFE:** Micro-Frontend
+- **MVVM:** Model-View-ViewModel
+- **RFC 7807:** Problem Details for HTTP APIs
+- **Single-tenant:** Cada cliente (escola) tem sua própria instância isolada de infraestrutura (namespace, DB, tópicos).
+- **WS:** WebSocket
+
+### 1.5. Referências
+1.  **Cliente:** Template de SRS, resumos e diretrizes.
+2.  **Cliente:** Requisitos de negócio (e-mails, reuniões).
+3.  **Cliente:** Requisitos de operação e segurança.
+4.  **Bibliografia:** *Sistemas Distribuídos* (Coulouris)
+5.  **Bibliografia:** *Engenharia de Software Moderna* (Marco Túlio Valente)
+6.  **Bibliografia:** *Histórias de Usuário* (Mike Cohn, 2022)
+7.  **Bibliografia:** *Test-Driven Development* (Kent Beck)
+8.  **Bibliografia:** *Gerenciamento de Requisitos de Software* (Wiegers & Beatty)
+9.  **Bibliografia:** Dissertação (GAM) de micro-frontends.
+
+### 1.6. Suposições e Dependências
+- A infraestrutura Kubernetes (K8s) é estável e gerenciada pela equipe de DevOps.
+- O segredo `KUBE_CONFIG_DATA` está disponível nas configurações da organização do GitHub.
+- Existe um provedor de e-mail transacional (ex: SendGrid, SES) para o serviço de notificações. [PENDÊNCIA: Confirmar provedor e contratar].
+- A equipe de desenvolvimento tem autonomia para criar e gerenciar repositórios, pipelines e segredos no ambiente de desenvolvimento/staging.
+
+---
+
+## 2. Descrição Geral
+
+### 2.1. Perspectiva do Produto
+O DS6 é um sistema distribuído nativo da nuvem, composto por microsserviços de backend e micro-frontends. A comunicação entre os componentes internos utiliza uma combinação de chamadas síncronas (REST) para ações de comando/consulta e um barramento de eventos (Kafka) para propagação de estado assíncrona (EDD).
+
+Para o MVP, a arquitetura de tenancy será **single-tenant por instância**, garantindo o máximo isolamento de dados entre as escolas. Está previsto, como evolução arquitetural (Fase F3), a exploração de um modelo **multi-tenant lógico** (com `tenant_id` em nível de aplicação) para otimização de custos. (Referências: Coulouris, cap. 2; Valente, cap. 13).
+
+### 2.2. Funções Principais do Produto
+| Domínio | Serviço Responsável | Resumo da Função |
+| :--- | :--- | :--- |
+| **Acessos** | `ds6-auth-service`, `ds6-user-service` | Autenticação, autorização baseada em papéis (RBAC) e gerenciamento de usuários. |
+| **Alunos** | `ds6-student-service` | Cadastro, matrícula e gestão de dados dos estudantes. |
+| **Horários** | `ds6-class-schedule-service` | Alocação de turmas, disciplinas e professores em grades horárias. |
+| **Presença** | `ds6-presence-service` | Registro de frequência em tempo real (via WebSocket) com suporte a offline-first. |
+| **Avaliações** | `ds6-grade-exams-service` | Lançamento de notas e resultados de avaliações. |
+| **Administração** | `ds6-admin-service` | Configurações globais do sistema por tenant. |
+| **Notificações**| `[PENDÊNCIA: ds6-notification-service]` | Envio de comunicações (e-mail, push) com base em eventos do sistema. |
+| **Relatórios** | `[PENDÊNCIA: ds6-report-service]` | Geração de relatórios operacionais e acadêmicos. |
+
+### 2.3. Atores e Personas
+Entender para quem estamos construindo é fundamental. (Referência: Design Centrado no Usuário, Lowdermilk).
+
+<div className="card-container">
+  <Card
+    title="Administrador de TI"
+    description="Responsável pelo provisionamento e manutenção da instância da escola. Precisa de controle sobre configurações de infra e segurança."
+  />
+  <Card
+    title="Secretaria Acadêmica"
+    description="Gerencia matrículas, turmas, horários e dados de alunos/professores. Busca eficiência e precisão nos processos."
+  />
+  <Card
+    title="Professor"
+    description="Registra frequência, lança notas e acompanha o desempenho de suas turmas. Precisa de uma interface rápida e intuitiva."
+  />
+  <Card
+    title="Aluno"
+    description="Consulta suas notas, frequência e horários. Busca acesso fácil e rápido à sua vida acadêmica."
+  />
+  <Card
+    title="Responsável"
+    description="Acompanha a vida acadêmica do aluno (notas, frequência). Necessita de visibilidade e notificações."
+  />
+  <Card
+    title="Sistemas Externos"
+    description="Sistemas que podem consumir dados via APIs ou ser notificados por eventos para integrações futuras."
+  />
+</div>
+
+### 2.4. Ambiente de Operação
+- **Backend:** Microsserviços em Spring Boot 3+ (Java 17+), conteinerizados com Docker.
+- **Comunicação:** REST para APIs síncronas, Kafka para eventos, WebSocket para push em tempo real.
+- **Persistência:** Banco de dados PostgreSQL (um por serviço, por tenant), com migrações gerenciadas pelo Flyway.
+- **Frontend:** Aplicação Web em Flutter, com arquitetura de Micro-Frontends (MFE) e padrão MVVM (ChangeNotifier).
+- **Orquestração e Deploy:** A implantação é feita em um cluster Kubernetes, com pipelines de CI/CD via GitHub Actions.
+
+### 2.5. Restrições de Design e Implementação
+- **RNF-Login:** O tempo de resposta para autenticação deve ser inferior a 2 segundos no percentil 95. (Referência: Requisitos Cliente).
+- **RNF-Disponibilidade:** Os serviços críticos (Auth, Presence, Grades) devem ter 99% de uptime mensal. (Referência: Requisitos Cliente).
+- **SEG-Auth:** Senhas devem ser armazenadas usando o algoritmo BCrypt com um `cost` de no mínimo 10. (Referência: Requisitos Segurança).
+- **LGPD:** O sistema deve ser projetado para minimizar a coleta de PII e facilitar a anonimização de dados. Nenhum PII deve ser logado. (Referência: Requisitos Cliente).
+- **RNF-Backup:** Backup diário dos bancos de dados é mandatório, com política de retenção de [PENDÊNCIA: 7 dias?].
+
+### 2.6. Documentação do Usuário
+A documentação para o usuário final consistirá em uma seção de Ajuda/FAQ dentro da aplicação, além de guias de uso que serão produzidos pela equipe de produto. [PENDÊNCIA: Definir formato e responsável].
+
+---
+
+## 3. Requisitos Funcionais
+
+<Callout type="info">
+  Cada requisito funcional é apresentado como uma história de usuário, seguindo o framework BDD para clareza nos critérios de aceite. Os contratos de API e eventos refletem a arquitetura distribuída e orientada a eventos. (Referências: Cohn, 2022; Coulouris, cap. 6).
+</Callout>
+
+### **ÉPICO-01: Gestão de Acessos (Auth & Users)**
+> **Como um** usuário do sistema, **eu quero** me autenticar de forma segura e ter acesso apenas às funcionalidades do meu perfil, **para que** os dados da escola permaneçam íntegros e confidenciais.
+
+---
+
+#### **RF-01.1: Autenticação de Usuário**
+> **História:** Como um **usuário registrado**, eu quero **fazer login** com meu e-mail e senha, para que eu possa acessar o sistema.
+
+<Tabs items={['Critérios de Aceite (BDD)', 'Contrato da API', 'Eventos Publicados']}>
+  <Tab>
+    ```gherkin
+    # Cenário 1: Login com sucesso
+    DADO que eu sou um usuário registrado com e-mail "professor@escola.com" e senha "senha123"
+    E meu usuário está ativo
+    QUANDO eu envio minhas credenciais para a tela de login
+    ENTÃO o sistema deve me autenticar com sucesso
+    E me retornar um token JWT válido.
+
+    # Cenário 2: Login com credenciais inválidas
+    DADO que eu sou um usuário registrado
+    QUANDO eu tento fazer login com uma senha incorreta
+    ENTÃO o sistema deve retornar um erro de "Credenciais inválidas" (RFC 7807, status 401).
+
+    # Cenário 3: Acesso com token expirado
+    DADO que eu estou autenticado com um token JWT
+    E meu token expirou
+    QUANDO eu tento acessar um recurso protegido
+    ENTÃO o sistema deve retornar um erro de "Token expirado" (RFC 7807, status 401)
+    E eu devo ser redirecionado para a tela de login.
+    ```
+  </Tab>
+  <Tab>
+    **Serviço:** `ds6-auth-service`
+    <br/>
+    **Endpoint:** `POST /api/v1/auth/login`
+
+    **Request Body:**
+    ```json
+    {
+      "email": "professor@escola.com",
+      "password": "senha123"
+    }
+    ```
+
+    **Response Body (200 OK):**
+    ```json
+    {
+      "accessToken": "ey...",
+      "tokenType": "Bearer",
+      "expiresIn": 3600
+    }
+    ```
+  </Tab>
+  <Tab>
+    Ao autenticar com sucesso, o `ds6-auth-service` publica um evento para notificar outros sistemas sobre o login.
+
+    - **Evento:** `auth.user.logged.v1`
+    - **Tópico Kafka:** `ds6.{tenant_id}.auth.user.logged.v1`
+    - **Produtor:** `ds6-auth-service`
+    - **Consumidores:** `ds6-audit-service` (para trilha de auditoria), `ds6-user-service` (para atualizar "último login").
+
+    **Payload do Evento:**
+    ```json
+    {
+      "specversion": "1.0",
+      "id": "uuid-...",
+      "source": "ds6-auth-service",
+      "type": "ds6.auth.user.logged.v1",
+      "subject": "user-uuid-...",
+      "time": "2025-10-14T10:00:00Z",
+      "correlationid": "trace-uuid-...",
+      "datacontenttype": "application/json",
+      "tenantid": "escola-xpto",
+      "data": {
+        "userId": "user-uuid-...",
+        "loginTimestamp": "2025-10-14T10:00:00Z",
+        "ipAddress": "192.168.1.100"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+
+---
+
+### **ÉPICO-03: Controle de Presença**
+> **Como um** professor, **eu quero** registrar a presença dos alunos de forma rápida e confiável, mesmo com conectividade instável, **para que** o registro de frequência seja mantido com precisão.
+
+---
+
+#### **RF-03.1: Registrar Presença em Aula**
+> **História:** Como um **professor**, eu quero **marcar a presença ou ausência** de cada aluno em uma aula específica, para que o sistema registre a frequência da turma.
+
+<Tabs items={['Critérios de Aceite (BDD)', 'Contrato da API', 'Eventos Publicados']}>
+  <Tab>
+    ```gherkin
+    # Cenário 1: Registrar presença com conexão (Online)
+    DADO que eu sou um professor logado e estou na tela de chamada da turma "Cálculo I"
+    E a conexão com a internet está ativa
+    QUANDO eu marco o aluno "João da Silva" como "Presente"
+    ENTÃO o sistema deve confirmar o registro em tempo real
+    E publicar o evento "attendance.recorded.v1" imediatamente
+    E a interface deve ser atualizada com o status "Salvo".
+
+    # Cenário 2: Registrar presença sem conexão (Offline-First)
+    DADO que eu sou um professor logado e estou na tela de chamada da turma "Cálculo I"
+    E a conexão com a internet está inativa
+    QUANDO eu marco a aluna "Ana Maria Silva" como "Ausente"
+    ENTÃO o MFE deve salvar o registro em uma fila local (offline queue)
+    E a interface deve ser atualizada com o status "Pendente de sincronização".
+
+    # Cenário 2.1: Sincronização após reconectar
+    DADO que existem registros de presença na fila local
+    E a conexão com a internet é restaurada
+    QUANDO o MFE sincroniza os dados pendentes
+    ENTÃO os registros de presença devem ser enviados para o backend
+    E os eventos "attendance.recorded.v1" correspondentes devem ser publicados
+    E a interface deve ser atualizada com o status "Salvo".
+    ```
+  </Tab>
+  <Tab>
+    **Serviço:** `ds6-presence-service`
+    <br/>
+    **Endpoint:** `POST /api/v1/attendances`
+
+    **Request Body (pode ser um lote de registros):**
+    ```json
+    [
+      {
+        "studentId": "uuid-student-123",
+        "classId": "uuid-class-456",
+        "lessonId": "uuid-lesson-789",
+        "status": "PRESENT",
+        "recordedAt": "2025-10-14T14:00:00Z"
+      },
+      {
+        "studentId": "uuid-student-abc",
+        "classId": "uuid-class-456",
+        "lessonId": "uuid-lesson-789",
+        "status": "ABSENT",
+        "recordedAt": "2025-10-14T14:01:00Z"
+      }
+    ]
+    ```
+
+    **Response Body (202 Accepted):**
+    ```json
+    {
+      "message": "Attendance records accepted for processing.",
+      "correlationId": "trace-uuid-..."
+    }
+    ```
+  </Tab>
+  <Tab>
+    Após o processamento de cada registro de presença.
+
+    - **Evento:** `attendance.recorded.v1`
+    - **Tópico Kafka:** `ds6.{tenant_id}.attendance.recorded.v1`
+    - **Produtor:** `ds6-presence-service`
+    - **Consumidores:** `ds6-audit-service`, `ds6-student-service` (para atualizar estatísticas do aluno), `ds6-report-service`.
+
+    **Payload do Evento (CloudEvent):**
+    ```json
+    {
+      "specversion": "1.0",
+      "id": "uuid-...",
+      "source": "ds6-presence-service",
+      "type": "ds6.attendance.recorded.v1",
+      "subject": "uuid-attendance-record-xyz",
+      "time": "2025-10-14T14:02:00Z",
+      "correlationid": "trace-uuid-...",
+      "datacontenttype": "application/json",
+      "tenantid": "escola-xpto",
+      "data": {
+        "studentId": "uuid-student-123",
+        "classId": "uuid-class-456",
+        "lessonId": "uuid-lesson-789",
+        "status": "PRESENT",
+        "recordedAt": "2025-10-14T14:00:00Z",
+        "professorId": "uuid-professor-xyz"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## 4. Requisitos Não-Funcionais (RNFs)
+
+<Callout type="info">
+  Os atributos de qualidade (RNFs) definem *como* o sistema deve operar. Eles são cruciais para garantir a robustez, segurança e escalabilidade da plataforma. Cada RNF deve ser mensurável e testável. (Referências: Valente, cap. 3; Coulouris, cap. 15).
+</Callout>
+
+| ID | Categoria | Requisito | Critério de Aceite |
+| :--- | :--- | :--- | :--- |
+| **RNF-01** | **Desempenho** | 95% das chamadas de autenticação (`/api/v1/auth/login`) devem responder em **< 2s**. | Monitorado via dashboard do Grafana (SLO). Alertas configurados para violações. |
+| **RNF-02** | **Desempenho** | 95% das chamadas de registro de presença (`/api/v1/presence`) devem responder em **< 1.5s**. | Monitorado via dashboard do Grafana (SLO). |
+| **RNF-03** | **Desempenho** | A propagação de eventos via WebSocket (ex: confirmação de presença) deve ocorrer em **< 5s** no p95. | Métricas de latência ponta-a-ponta (produção do evento no backend até recebimento no MFE). |
+| **RNF-04** | **Disponibilidade**| Os serviços críticos (Auth, Presence, Grades) devem manter **99% de uptime** mensal. | Medido pelo SLI/SLO da ferramenta de monitoramento (ex: Prometheus/Alertmanager). |
+| **RNF-05** | **Observabilidade** | Todas as chamadas de API e eventos devem conter um `X-Correlation-ID` para rastreabilidade. | Validado via query no Loki/Jaeger, garantindo que um trace completo possa ser reconstruído. |
+| **RNF-06** | **Observabilidade** | Logs devem ser estruturados em **JSON**, contendo no mínimo `timestamp`, `level`, `service`, `tenant_id`, e `correlation_id`. | Verificado no pipeline de CI com testes que validam o formato do log. |
+| **RNF-07** | **Segurança/LGPD** | Senhas de usuários devem ser armazenadas usando **BCrypt** com `cost` >= 10. | Verificado via revisão de código e testes de penetração. |
+| **RNF-08** | **Segurança/LGPD** | Nenhum dado pessoal identificável (PII) deve ser exposto em logs, URLs ou mensagens de erro. | Validado via SAST/DAST no pipeline de CI e revisão de código. |
+| **RNF-09** | **Escalabilidade** | Cada serviço deve ser capaz de escalar horizontalmente (múltiplas réplicas) sem perda de estado. | Testado em ambiente de staging com `kubectl scale --replicas=3` e verificação de funcionalidade. |
+| **RNF-10** | **Backup/DR** | O RPO (Recovery Point Objective) para os dados dos tenants é de **24 horas**. | Backup diário automatizado dos bancos de dados PostgreSQL. |
+| **RNF-11** | **Backup/DR** | O RTO (Recovery Time Objective) para os serviços críticos é de **1 hora**. | Validado através de drills de recuperação de desastres simulados a cada 6 meses. |
+| **RNF-12** | **Contratos** | Todas as APIs REST devem seguir a especificação **OpenAPI 3.0** e tratar erros com **RFC 7807**. | O pipeline de CI deve validar a documentação OpenAPI e a estrutura dos `Problem+JSON`. |
+
+---
+
+## 5. Arquitetura e Decisões
+
+<Callout type="info">
+  A arquitetura do DS6 foi projetada para suportar os requisitos de negócio e não-funcionais, priorizando a autonomia das equipes, a escalabilidade e a resiliência. As decisões foram tomadas com base em padrões de mercado para sistemas distribuídos nativos da nuvem. (Referências: Valente, cap. 5, 13; Coulouris, cap. 2).
+</Callout>
+
+### 5.1. Diagrama de Contexto (C4 Model - Nível 1)
+O diagrama abaixo ilustra o sistema **DistriSchool (DS6)** em seu contexto, mostrando como os usuários interagem com ele e como ele se integra com sistemas externos.
+
+- **Usuários (Atores):** Administradores, Secretaria, Professores, Alunos e Responsáveis interagem com o sistema através da aplicação **Flutter Web**.
+- **Sistema DS6:** O sistema principal, composto por uma casca de Micro-Frontends (MFE Shell), BFFs e Microsserviços.
+- **Provedor de E-mail:** Um sistema externo responsável pelo envio de notificações transacionais (ex: confirmação de cadastro, alertas).
+
+<Mermaid
+  graph={`
+    graph TD
+        subgraph "Usuários"
+            Admin["Administrador"]
+            Professor["Professor"]
+            Aluno["Aluno"]
+        end
+
+        subgraph "Sistema DistriSchool (DS6)"
+            MFE[("Flutter Web App\n(MFE Shell + MFEs)")]
+            BFFs["BFFs por Domínio"]
+            Services["Microsserviços Backend"]
+            Kafka[("Kafka")]
+        end
+
+        EmailSvc[("Provedor de E-mail")]
+
+        Admin & Professor & Aluno -- "Interagem via HTTPS" --> MFE
+        MFE -- "Chama APIs REST/GraphQL" --> BFFs
+        BFFs -- "Orquestra chamadas REST" --> Services
+        Services -- "Publicam/Consomem eventos" --> Kafka
+        Services -- "Enviam e-mails via API" --> EmailSvc
+  `}
+/>
+
+### 5.2. Registros de Decisão de Arquitetura (ADRs)
+As decisões arquiteturais mais impactantes são documentadas em ADRs para garantir rastreabilidade e alinhamento.
+
+| ID | Título da Decisão | Resumo da Decisão e Consequências |
+| :--- | :--- | :--- |
+| **ADR-001** | **Estratégia de Micro-Frontends (MFE)** | **Decisão:** Adotar uma abordagem de **Vertical Split**, onde cada MFE é responsável por um domínio de negócio completo (ex: MFE-Students, MFE-Presence). A composição será feita no lado do cliente (client-side) por um **Shell Application** em Flutter. <br/> **Consequências:** Alta autonomia para as equipes de front-end; risco de duplicação de código (mitigado por uma `library` de componentes); complexidade no gerenciamento de estado global. (Referência: Dissertação GAM). |
+| **ADR-002** | **Padrão de Integração Backend** | **Decisão:** Utilizar um estilo híbrido: **REST (síncrono)** para comandos e consultas diretas e **Publish-Subscribe (EDD via Kafka)** para propagação de estado e integrações assíncronas. **WebSockets** serão usados para comunicação em tempo real do servidor para o cliente. <br/> **Consequências:** Flexibilidade para diferentes casos de uso; complexidade na gestão da consistência eventual; necessidade de monitoramento robusto do broker de eventos. (Referência: Coulouris, cap. 6). |
+| **ADR-003** | **Modelo de Tenancy no MVP** | **Decisão:** Adotar **Single-Tenant por instância** no MVP. Cada escola terá seu próprio namespace no Kubernetes, banco de dados, e tópicos no Kafka. <br/> **Consequências:** Máximo isolamento e segurança; custo de infraestrutura mais alto por tenant; complexidade na gestão de múltiplas instâncias (mitigada na Fase F2 com IaC). |
+| **ADR-004** | **Consistência de Dados e Eventos** | **Decisão:** Implementar o padrão **Transactional Outbox** para garantir que um evento seja publicado se, e somente se, a transação no banco de dados for bem-sucedida. Os consumidores de eventos devem ser **idempotentes**. <br/> **Consequências:** Maior resiliência e consistência de dados; aumento da complexidade no lado do produtor (tabela outbox) e do consumidor (controle de mensagens processadas). (Referência: Valente, cap. 13). |
+| **ADR-005** | **Orquestração de Frontend (BFF)** | **Decisão:** Utilizar o padrão **Backend for Frontend (BFF)**, com um BFF por domínio de negócio. O BFF será responsável por agregar chamadas aos microsserviços e adaptar os payloads para as necessidades específicas do MFE. <br/> **Consequências:** Otimiza a comunicação entre front e back; evita over-fetching; adiciona uma camada extra de rede e de manutenção. |
