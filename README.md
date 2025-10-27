@@ -31,7 +31,6 @@ A missão do DS6 é digitalizar processos de escolas privadas (matrícula, turma
 ## 🗂️ Repositórios (mapa)
 > Substitua `<ORG_NAME>` pelo nome da sua organização no GitHub.
 
-- `https://github.com/<ORG_NAME>/library` — Schemas de eventos (v1), envelope, Problem+JSON, contratos comuns.
 - **Back-end (serviços)**  
   - `https://github.com/<ORG_NAME>/ds6-auth-service` — Autenticação (JWT), verificação, recuperação; evento `auth.user.logged.v1`.
   - `https://github.com/<ORG_NAME>/ds6-user-service` — Usuários/roles.
@@ -106,7 +105,8 @@ jobs:
 ---
 
 ## 🧪 Qualidade & Contratos
-- **OpenAPI** (REST) e **JSON Schema** (WS/eventos) publicados no `library`.
+- **Glossário da API**: A documentação de referência para todos os endpoints está em **[doc/API_Endpoints.md](./doc/API_Endpoints.md)**.
+- **OpenAPI** (REST) e **JSON Schema** (WS/eventos) são definidos em um repositório central de contratos.
 - **Contract tests** em CI (quebras exigem bump de versão).
 - **TDD/BDD** nas histórias críticas (Given/When/Then).
 
