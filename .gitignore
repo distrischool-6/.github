@@ -1,5 +1,6 @@
 # Documentação e arquivos temporários
-doc/
+doc/.obsidian
+doc/library
 *.DS_Store
 DS6_Roadmap.md
 AGENTS.md
