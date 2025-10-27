@@ -1,5 +1,3 @@
-# .github/workflows/deploy.yml
-
 name: Deploy to K3s on VPS
 
 # Gatilho: Executa este workflow sempre que houver um push na branch 'main'
@@ -17,13 +15,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Instala e configura o kubectl usando o secret KUBE_CONFIG_DATA
+      # 2. Instala e configura o kubectl decodificando o secret
       - name: Set up Kubeconfig
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG_DATA }}" > $HOME/.kube/config
+          # Decodifica o secret (que deve estar em Base64) e salva no arquivo de configuração
+          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
         
+      # (Opcional, mas recomendado para depuração) Verifica o conteúdo do arquivo gerado
+      - name: Debug Kubeconfig Content
+        run: |
+          echo "--- Verificando o conteúdo do kubeconfig (sem dados sensíveis) ---"
+          # O comando 'get-clusters' é seguro e confirma que o arquivo é válido
+          kubectl config get-clusters
+          echo "----------------------------------------------------------------"
+
       # 3. Aplica as configurações do Kubernetes no seu cluster
       - name: Deploy to K3s
         run: |
@@ -31,4 +38,5 @@ jobs:
           kubectl apply -f k8s/
           
           echo "Verificando o status dos pods..."
+          sleep 10 # Dá um tempo para os pods começarem a subir
           kubectl get pods
