@@ -112,10 +112,21 @@ jobs:
 
 ---
 
-## 🤝 Contribuição
-- Use **ADRs** para decisões arquiteturais significativas.
-- Commits convencionais (feat/fix/chore/docs/refactor/test/build).
-- PRs com testes, descrição clara e link para RF/RNF/issue.
+## 🤝 Fluxo de Contribuição
+Todo o trabalho de desenvolvimento é guiado pelo nosso board no **GitHub Projects**. O fluxo garante rastreabilidade e clareza em cada mudança.
+
+1.  **Início a partir de uma *Issue***: Nenhuma tarefa começa sem uma *Issue* correspondente no board. A *Issue* é a nossa fonte da verdade para os requisitos e discussões.
+2.  **Criação da Branch**: Crie uma nova branch a partir da `main` seguindo o padrão `feature/<issue-number>-short-description` ou `fix/<issue-number>-short-description`.
+3.  **Desenvolvimento e Commits**:
+    - Faça commits pequenos e atômicos.
+    - Siga o padrão de **Commits Convencionais** (`feat:`, `fix:`, `docs:`, `chore:`, etc.) para as mensagens.
+4.  **Abertura do Pull Request (PR)**:
+    - Ao concluir o trabalho, abra um PR direcionado para a branch `main`.
+    - A descrição do PR **deve** conter um link para a *Issue* que ele resolve (ex: `Resolves #123`).
+    - Garanta que os testes de CI/CD estão passando.
+5.  **Revisão e Merge**: O PR precisa ser revisado e aprovado por pelo menos um outro membro da equipe antes de ser mesclado na `main`.
+
+- Para decisões arquiteturais importantes, utilize o processo de **ADR (Architecture Decision Record)**.
 
 ---
 
@@ -126,9 +137,3 @@ jobs:
 ---
 
 > **Referências** (resumo): Template & requisitos do cliente; *Sistemas Distribuídos* (Coulouris); *Engenharia de Software Moderna* (Valente); *Histórias de Usuário* (2022); *TDD* (Kent Beck); Dissertação (GAM Micro-Frontends).
-
----
-
-# AVISO IMPORTANTE SOBRE COMMITS
-
-**COMMITs usando `MELHORIA` no começo só vão entrar na versão da segunda entrega.**
