@@ -1,6 +1,5 @@
 name: Deploy to K3s on VPS
 
-# Gatilho: Executa este workflow sempre que houver um push na branch 'main'
 on:
   push:
     branches:
@@ -8,35 +7,32 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest # O workflow roda em uma máquina virtual do GitHub
+    runs-on: ubuntu-latest
 
     steps:
-      # 1. Baixa o código do seu repositório para a máquina do GitHub Actions
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Instala e configura o kubectl decodificando o secret
+      # 2. Instala e configura o kubectl usando o secret DIRETAMENTE
       - name: Set up Kubeconfig
         run: |
           mkdir -p $HOME/.kube
-          # Decodifica o secret (que deve estar em Base64) e salva no arquivo de configuração
-          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > $HOME/.kube/config
+          # Salva o conteúdo do secret diretamente, SEM decodificar
+          echo "${{ secrets.KUBE_CONFIG_DATA }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
         
-      # (Opcional, mas recomendado para depuração) Verifica o conteúdo do arquivo gerado
-      - name: Debug Kubeconfig Content
-        run: |
-          echo "--- Verificando o conteúdo do kubeconfig (sem dados sensíveis) ---"
-          # O comando 'get-clusters' é seguro e confirma que o arquivo é válido
-          kubectl config get-clusters
-          echo "----------------------------------------------------------------"
-
       # 3. Aplica as configurações do Kubernetes no seu cluster
       - name: Deploy to K3s
         run: |
-          # Este comando assume que seus arquivos de deploy estão na pasta 'k8s/'
+          # O passo abaixo substitui a tag da imagem no seu arquivo de deployment
+          # para garantir que a nova imagem seja usada.
+          echo "Atualizando a imagem para: ghcr.io/${{ github.repository }}:${{ github.sha }}"
+          sed -i "s|image:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|g" k8s/deployment.yaml
+          
+          # Aplica os manifestos ao cluster
           kubectl apply -f k8s/
           
-          echo "Verificando o status dos pods..."
-          sleep 10 # Dá um tempo para os pods começarem a subir
+          echo "Verificando o status do deploy..."
+          sleep 15 # Dá um tempo para o Kubernetes processar as mudanças
           kubectl get pods
+          kubectl get services
