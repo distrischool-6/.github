@@ -1,0 +1,63 @@
+# .github/workflows/reusable-java-ci.yml
+name: Reusable Java CI Pipeline
+
+# 1. Gatilho 'workflow_call': Torna este workflow chamável por outros repositórios.
+on:
+  workflow_call:
+    # 2. Entradas (Inputs): Parâmetros que o workflow que chama deve fornecer.
+    inputs:
+      service-name:
+        description: 'O nome do serviço para build. Ex: ds6-student-service'
+        required: true
+        type: string
+      java-version:
+        description: 'A versão do Java a ser utilizada para o build.'
+        required: false
+        default: '17'
+        type: string
+
+    # 3. Segredos (Secrets): Permite que segredos sejam passados de forma segura.
+    secrets:
+      SONAR_TOKEN:
+        description: 'Token opcional para análise de código no SonarCloud.'
+        required: false
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar JDK ${{ inputs.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: 'temurin'
+
+      - name: 3. Configurar Cache do Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: 4. Build e Testes com Maven
+        # O comando 'verify' executa o ciclo de vida completo, incluindo compilação e testes.
+        # O flag -B (batch mode) é essencial para ambientes de CI.
+        run: mvn -B verify --file pom.xml
+
+      - name: 5. Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.service-name }}
+          path: target/*.jar
+
+      # Passo opcional, mas recomendado: Análise de código com SonarCloud
+      # - name: 6. SonarCloud Scan
+      #   if: ${{ secrets.SONAR_TOKEN != '' }}
+      #   uses: SonarSource/sonarcloud-github-action@master
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
